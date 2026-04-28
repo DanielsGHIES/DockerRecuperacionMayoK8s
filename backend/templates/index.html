@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Music Reviews</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="hero">
+        <p class="eyebrow">Paso 1 completado</p>
+        <h1>Discos y comentarios en Docker</h1>
+        <p class="intro">
+          Aplicacion multicontenedor con Flask y PostgreSQL para registrar discos de musica
+          y opiniones sobre ellos.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Nuevo disco</h2>
+        <form action="{{ url_for('create_disc') }}" method="post" class="stack">
+          <label>
+            <span>Nombre del disco</span>
+            <input type="text" name="name" placeholder="The Dark Side of the Moon" required />
+          </label>
+          <label>
+            <span>Grupo o artista</span>
+            <input type="text" name="artist" placeholder="Pink Floyd" required />
+          </label>
+          <button type="submit">Guardar disco</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <h2>Coleccion</h2>
+          <span>{{ discs|length }} discos</span>
+        </div>
+
+        {% if discs %}
+          <div class="disc-list">
+            {% for disc in discs %}
+              <article class="disc-card">
+                <div class="disc-header">
+                  <div>
+                    <h3>{{ disc.name }}</h3>
+                    <p>{{ disc.artist }}</p>
+                  </div>
+                  <form action="{{ url_for('delete_disc', disc_id=disc.id) }}" method="post">
+                    <button type="submit" class="danger">Eliminar</button>
+                  </form>
+                </div>
+
+                <p class="meta">{{ disc.comment_count }} comentarios</p>
+
+                <form
+                  action="{{ url_for('edit_disc', disc_id=disc.id) }}"
+                  method="post"
+                  class="comment-form edit-block"
+                >
+                  <label>
+                    <span>Editar disco</span>
+                    <input type="text" name="name" value="{{ disc.name }}" required />
+                  </label>
+                  <label>
+                    <span>Editar grupo o artista</span>
+                    <input type="text" name="artist" value="{{ disc.artist }}" required />
+                  </label>
+                  <button type="submit" class="ghost solid-border">Actualizar disco</button>
+                </form>
+
+                <form
+                  action="{{ url_for('create_comment', disc_id=disc.id) }}"
+                  method="post"
+                  class="comment-form"
+                >
+                  <label>
+                    <span>Anadir comentario</span>
+                    <textarea
+                      name="content"
+                      rows="3"
+                      placeholder="Escribe una opinion sobre este disco"
+                      required
+                    ></textarea>
+                  </label>
+                  <button type="submit">Publicar comentario</button>
+                </form>
+
+                <div class="comments">
+                  {% for comment in comments_by_disc.get(disc.id, []) %}
+                    <div class="comment-item">
+                      <div class="comment-content">
+                        <p>{{ comment.content }}</p>
+                        <form
+                          action="{{ url_for('edit_comment', comment_id=comment.id) }}"
+                          method="post"
+                          class="inline-edit"
+                        >
+                          <textarea name="content" rows="2" required>{{ comment.content }}</textarea>
+                          <button type="submit" class="ghost solid-border">Actualizar</button>
+                        </form>
+                      </div>
+                      <form
+                        action="{{ url_for('delete_comment', comment_id=comment.id) }}"
+                        method="post"
+                      >
+                        <button type="submit" class="ghost">Borrar</button>
+                      </form>
+                    </div>
+                  {% else %}
+                    <p class="empty">Todavia no hay comentarios para este disco.</p>
+                  {% endfor %}
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="empty">Todavia no hay discos registrados.</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>
