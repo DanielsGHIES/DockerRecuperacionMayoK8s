@@ -210,4 +210,4 @@ Estos son los commits que se deben indicar en la entrega de la practica hasta es
 | --- | --- | --- |
 | 2.a | `f931252e227eb6a692d4429e4a8f27dbaf28ac11` | La app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments. |
 | 2.b | `7ff39b6fd05afcc93daabec4fe09742ed7c7c292` | El cluster y los Deployments estan configurados, pero no existe HPA. |
-| 2.c | Pendiente de sustituir por el commit final de este estado | La app funciona en K8s con HPA configurado y conserva vulnerabilidades sin corregir para el analisis KICS. |
+| 2.c | `443c53a330865f48674a6ffd6e640c82ebabb49a` | La app funciona en K8s con HPA configurado y conserva vulnerabilidades sin corregir para el analisis KICS. |
