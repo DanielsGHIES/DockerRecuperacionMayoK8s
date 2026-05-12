@@ -134,6 +134,21 @@ El HPA se define en:
 
 - `k8s/backend-hpa.yml`: escala el `Deployment` `backend` entre 2 y 8 replicas cuando la CPU media supera el 20%.
 
+El componente que escala es el backend Flask:
+
+- Deployment escalado: `backend`.
+- Pods escalados: los pods creados por ese Deployment, con nombres tipo `backend-xxxxxxxxxx-yyyyy`.
+- Selector de los pods: etiqueta `app=backend`.
+- Service asociado: `backend`, que reparte el trafico entre las replicas disponibles.
+
+El escalado funciona asi:
+
+- El HPA `backend-hpa` observa el consumo medio de CPU del Deployment `backend`.
+- Si la CPU media supera el `20%` de la CPU solicitada, Kubernetes aumenta replicas.
+- El minimo configurado es `2` replicas y el maximo `8`.
+- En subida puede anadir hasta `4` pods cada `10s`.
+- En bajada puede retirar hasta `2` pods cada `30s`.
+
 El backend declara `resources.requests` y `resources.limits` en `k8s/backend-deployment.yml`, requisito necesario para que Kubernetes pueda calcular la utilizacion de CPU.
 
 Para comprobar el HPA:
