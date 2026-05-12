@@ -171,5 +171,11 @@ kubectl get services
 
 ## Commit intermedio solicitado
 
-- Punto 2.a: `f931252e227eb6a692d4429e4a8f27dbaf28ac11`. En ese commit la app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments.
-- Punto 2.b: el commit de este estado contiene los manifiestos de Deployment y Service, pero aun no contiene HPA.
+Estos son los commits que se deben indicar en la entrega de la practica hasta este punto:
+
+| Apartado | Commit | Estado |
+| --- | --- | --- |
+| 2.a | `f931252e227eb6a692d4429e4a8f27dbaf28ac11` | La app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments. |
+| 2.b | `7ff39b6fd05afcc93daabec4fe09742ed7c7c292` | El cluster y los Deployments estan configurados, pero no existe HPA. |
+
+El apartado 2.c se completara en un commit posterior, cuando la aplicacion tenga HPA configurado y funcionando.
