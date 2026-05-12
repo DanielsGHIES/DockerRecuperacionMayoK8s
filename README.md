@@ -2,7 +2,7 @@
 
 Aplicacion web multicontenedor para gestionar discos de musica y comentarios asociados.
 
-Este repositorio esta en el punto intermedio 2.a de la practica: la aplicacion sigue funcionando con Docker Compose, pero ya incluye los cambios hasta el punto 6 del tutorial para preparar la migracion a Kubernetes y crear el cluster local con kind. En este punto todavia no se crean Deployments de la aplicacion.
+Este repositorio esta en el punto intermedio 2.b de la practica: el cluster Kubernetes ya se crea con kind y la aplicacion ya tiene Deployments y Services configurados, pero todavia no tiene HPA.
 
 ## Tecnologias utilizadas
 
@@ -24,19 +24,31 @@ Este repositorio esta en el punto intermedio 2.a de la practica: la aplicacion s
 - Editar comentarios.
 - Eliminar discos y comentarios.
 
-## Como ejecutar la aplicacion Docker
+## Como ejecutar la aplicacion en Kubernetes
 
 ```bash
 ./start.sh
 ```
 
-Comando equivalente:
+El script construye y publica la imagen del backend en el registry local, crea o reutiliza el cluster kind, aplica los manifiestos Kubernetes y abre un `port-forward`.
+
+La aplicacion se expone en:
+
+```text
+http://localhost:8000
+```
+
+Para detener el `port-forward`, pulsa `Ctrl+C`.
+
+## Como ejecutar la version Docker original
+
+La version Docker Compose se conserva para comprobar el punto 2.a:
 
 ```bash
 docker compose up --build
 ```
 
-La aplicacion se expone en:
+Tambien se expone en:
 
 ```text
 http://localhost:8000
@@ -104,6 +116,31 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
+## Deployments configurados
+
+Los Deployment de la aplicacion se definen en estos archivos:
+
+- `k8s/postgres-deployment.yml`: define el `Deployment` de PostgreSQL, el `Service` interno `postgres` y el `PersistentVolumeClaim` `postgres-data`.
+- `k8s/backend-deployment.yml`: define el `Deployment` del backend Flask con 2 replicas y el `Service` interno `backend`.
+
+El Secret usado por ambos Deployments esta en:
+
+- `k8s/postgres-secret.yml`: define las credenciales de PostgreSQL usadas por el contenedor de base de datos y por el backend.
+
+En este punto intermedio no existe ningun manifiesto HPA. Para comprobarlo:
+
+```bash
+kubectl get hpa
+```
+
+Para comprobar los Deployments:
+
+```bash
+kubectl get deployments
+kubectl get pods
+kubectl get services
+```
+
 ## Estructura del proyecto
 
 ```text
@@ -121,6 +158,10 @@ kubectl get pods -A
 |-- createCluster.sh
 |-- docker-compose.yml
 |-- imagesEnRegistry.sh
+|-- k8s
+|   |-- backend-deployment.yml
+|   |-- postgres-deployment.yml
+|   `-- postgres-secret.yml
 |-- README.md
 |-- start.sh
 `-- steps
@@ -129,4 +170,5 @@ kubectl get pods -A
 
 ## Commit intermedio solicitado
 
-El codigo del commit correspondiente al punto 6 del tutorial debe indicarse como el commit que contiene estos archivos y este README. En este punto la app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments.
+- Punto 2.a: `f931252e227eb6a692d4429e4a8f27dbaf28ac11`. En ese commit la app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments.
+- Punto 2.b: este commit contiene los manifiestos de Deployment y Service, pero aun no contiene HPA.
