@@ -1,185 +1,158 @@
-# Music Reviews App - migracion a Kubernetes
+# Music Reviews App - migracion de Docker a Kubernetes
 
 Aplicacion web multicontenedor para gestionar discos de musica y comentarios asociados.
 
-Este repositorio esta en el punto 2.c de la practica: la aplicacion funciona en Kubernetes con Deployments, Services y HPA configurado. La version aun conserva vulnerabilidades de infraestructura para analizarlas y corregirlas en el apartado posterior con KICS.
+Este repositorio corresponde a la practica de recuperacion de migracion de una aplicacion Docker a Kubernetes. La aplicacion original se conserva con Docker Compose y la version actual funciona en Kubernetes usando Deployments, Services, Secret, PersistentVolumeClaim y HPA.
 
 ## Tecnologias utilizadas
 
-- Flask
-- PostgreSQL
-- Docker
-- Docker Compose
-- kind
-- kubectl
-- metrics-server
+- Flask: backend web de la aplicacion.
+- PostgreSQL: base de datos relacional.
+- Docker y Docker Compose: version original multicontenedor.
+- kind: cluster Kubernetes local.
+- kubectl: gestion de recursos Kubernetes.
+- registry local: almacenamiento de la imagen Docker del backend.
+- metrics-server: metricas necesarias para el escalado automatico HPA.
 
-## Funcionalidades
+## Funcionalidades de la aplicacion
 
-- Crear discos con nombre y grupo o artista.
-- Listar discos almacenados.
-- Editar discos almacenados.
+La aplicacion permite:
+
+- Crear discos indicando nombre y grupo o artista.
+- Listar los discos almacenados.
+- Editar discos existentes.
+- Eliminar discos.
 - Anadir comentarios a cada disco.
-- Ver comentarios por disco.
+- Ver los comentarios asociados a cada disco.
 - Editar comentarios.
-- Eliminar discos y comentarios.
+- Eliminar comentarios.
+- Generar carga de CPU desde `/stress` para probar el HPA.
 
-## Como ejecutar la aplicacion en Kubernetes
+## Flujo completo de la aplicacion
+
+1. El usuario accede a `http://localhost:8000`.
+2. El Service `backend` recibe la peticion reenviada por `kubectl port-forward`.
+3. Kubernetes reparte la peticion entre las replicas disponibles del Deployment `backend`.
+4. El contenedor Flask procesa la peticion.
+5. El backend se conecta al Service interno `postgres`.
+6. El Service `postgres` envia la conexion al pod del Deployment `postgres`.
+7. PostgreSQL guarda los discos y comentarios en el volumen persistente `postgres-data`.
+8. Flask renderiza la plantilla HTML y devuelve la pagina al navegador.
+
+En Kubernetes el backend no se conecta directamente a una IP fija de la base de datos. Usa el nombre DNS interno `postgres`, definido por el Service de PostgreSQL. Esto permite que la aplicacion siga funcionando aunque cambie el pod de base de datos.
+
+## Ejecucion principal con start.sh
+
+Para levantar todo el entorno Kubernetes se usa:
 
 ```bash
+chmod +x start.sh
 ./start.sh
 ```
 
-El script construye y publica la imagen del backend en el registry local, crea o reutiliza el cluster kind, aplica los manifiestos Kubernetes, configura el HPA y abre un `port-forward`.
+El script `start.sh` automatiza el despliegue completo:
 
-La aplicacion se expone en:
+1. Ejecuta `imagesEnRegistry.sh`.
+2. Levanta o reutiliza el registry local en `localhost:5000`.
+3. Construye la imagen Docker del backend.
+4. Sube la imagen `localhost:5000/music-reviews-backend:1.0` al registry local.
+5. Ejecuta `createCluster.sh`.
+6. Crea o reutiliza el cluster kind.
+7. Configura kind para poder descargar imagenes desde el registry local.
+8. Instala y configura `metrics-server`.
+9. Ajusta el periodo de sincronizacion del HPA a `10s` para facilitar las pruebas.
+10. Aplica los manifiestos Kubernetes de Secret, PostgreSQL, backend y HPA.
+11. Espera a que los Deployments `postgres` y `backend` esten disponibles.
+12. Abre el `port-forward` del Service `backend` al puerto local `8000`.
+
+Cuando termina, la aplicacion queda disponible en:
 
 ```text
 http://localhost:8000
 ```
 
-Para detener el `port-forward`, pulsa `Ctrl+C`.
+Para detener el acceso local creado por `port-forward`, se pulsa `Ctrl+C`.
 
-## Como ejecutar la version Docker original
+## Version Docker Compose original
 
-La version Docker Compose se conserva para comprobar el punto 2.a:
+La version original de la aplicacion se conserva para comprobar el funcionamiento previo a la migracion:
 
 ```bash
 docker compose up --build
 ```
 
-Tambien se expone en:
+Tambien expone la aplicacion en:
 
 ```text
 http://localhost:8000
 ```
 
-La base de datos PostgreSQL persiste en el volumen Docker `postgres_data`.
+En Docker Compose hay dos servicios:
 
-## Preparacion de imagen para Kubernetes
+- `backend`: aplicacion Flask.
+- `db`: base de datos PostgreSQL.
 
-El backend se construye como imagen portable y se sube a un registry local:
+La base de datos persiste en el volumen Docker `postgres_data`.
 
-```bash
-chmod +x imagesEnRegistry.sh
-./imagesEnRegistry.sh
-```
+## Recursos Kubernetes creados
 
-Imagen generada:
+Los manifiestos estan en la carpeta `k8s/`.
 
-```text
-localhost:5000/music-reviews-backend:1.0
-```
+| Archivo | Recurso | Funcion |
+| --- | --- | --- |
+| `k8s/postgres-secret.yml` | Secret `postgres-secret` | Guarda las variables de base de datos usadas por PostgreSQL y Flask. |
+| `k8s/postgres-deployment.yml` | PVC `postgres-data` | Reserva almacenamiento persistente para PostgreSQL. |
+| `k8s/postgres-deployment.yml` | Deployment `postgres` | Ejecuta PostgreSQL con una replica. |
+| `k8s/postgres-deployment.yml` | Service `postgres` | Da un nombre interno estable para acceder a la base de datos. |
+| `k8s/backend-deployment.yml` | Deployment `backend` | Ejecuta la aplicacion Flask con 2 replicas iniciales. |
+| `k8s/backend-deployment.yml` | Service `backend` | Reparte el trafico entre las replicas del backend. |
+| `k8s/backend-hpa.yml` | HPA `backend-hpa` | Escala automaticamente el backend segun el uso de CPU. |
 
-## Creacion del cluster Kubernetes
+## Condiciones de escalado HPA
 
-El cluster se crea en el archivo `createCluster.sh`. Este script:
+El escalado automatico se define en `k8s/backend-hpa.yml`.
 
-- Verifica o instala `kind`.
-- Verifica o instala `kubectl`.
-- Genera `kind-config.yaml`.
-- Crea el cluster `kind`.
-- Conecta el registry local a la red de kind.
-- Instala `metrics-server`.
-- Ajusta `metrics-server` y el periodo de sincronizacion del HPA para pruebas posteriores.
-
-Comandos:
-
-```bash
-chmod +x createCluster.sh
-./createCluster.sh
-```
-
-La parte exacta de la aplicacion donde se crea el cluster esta en `createCluster.sh`, en este bloque:
-
-```bash
-echo "==> Creando cluster kind..."
-if kind get clusters 2>/dev/null | grep -q "^kind$"; then
-  echo "    El cluster 'kind' ya existe, omitiendo creacion."
-else
-  kind create cluster --config kind-config.yaml
-fi
-```
-
-## Referencia del punto 6 del tutorial
-
-- En el commit `f931252e227eb6a692d4429e4a8f27dbaf28ac11`, la aplicacion funcionaba con Docker Compose.
-- Existe un registry local para publicar la imagen del backend.
-- Existe un cluster kind preparado para la migracion mediante `createCluster.sh`.
-- `metrics-server` queda instalado para el HPA de los siguientes pasos.
-- En ese commit todavia no existian manifiestos `Deployment`, `Service` ni `HPA` de la aplicacion.
-- En el estado actual del repositorio ya existen los Deployments del punto 2.b, pero todavia no existe HPA.
-
-Para comprobar el cluster:
-
-```bash
-kubectl get nodes
-kubectl get pods -A
-```
-
-## Deployments configurados
-
-Los Deployment de la aplicacion se definen en estos archivos:
-
-- `k8s/postgres-deployment.yml`: define el `Deployment` de PostgreSQL, el `Service` interno `postgres` y el `PersistentVolumeClaim` `postgres-data`.
-- `k8s/backend-deployment.yml`: define el `Deployment` del backend Flask con 2 replicas y el `Service` interno `backend`.
-
-El Secret usado por ambos Deployments esta en:
-
-- `k8s/postgres-secret.yml`: define las credenciales de PostgreSQL usadas por el contenedor de base de datos y por el backend.
-
-## HPA configurado
-
-El HPA se define en:
-
-- `k8s/backend-hpa.yml`: escala el `Deployment` `backend` entre 2 y 8 replicas cuando la CPU media supera el 20%.
-
-El componente que escala es el backend Flask:
+El HPA escala el Deployment `backend` con estas condiciones:
 
 - Deployment escalado: `backend`.
-- Pods escalados: los pods creados por ese Deployment, con nombres tipo `backend-xxxxxxxxxx-yyyyy`.
-- Selector de los pods: etiqueta `app=backend`.
-- Service asociado: `backend`, que reparte el trafico entre las replicas disponibles.
+- Pods escalados: pods con etiqueta `app=backend`.
+- Minimo de replicas: `2`.
+- Maximo de replicas: `8`.
+- Metrica usada: CPU.
+- Condicion de escalado: CPU media superior al `20%` de la CPU solicitada.
+- Politica de subida: puede anadir hasta `4` pods cada `10s`.
+- Politica de bajada: puede retirar hasta `2` pods cada `30s`.
+- Ventana de estabilizacion al subir: `10s`.
+- Ventana de estabilizacion al bajar: `30s`.
 
-El escalado funciona asi:
+El backend define recursos en `k8s/backend-deployment.yml`:
 
-- El HPA `backend-hpa` observa el consumo medio de CPU del Deployment `backend`.
-- Si la CPU media supera el `20%` de la CPU solicitada, Kubernetes aumenta replicas.
-- El minimo configurado es `2` replicas y el maximo `8`.
-- En subida puede anadir hasta `4` pods cada `10s`.
-- En bajada puede retirar hasta `2` pods cada `30s`.
-
-El backend declara `resources.requests` y `resources.limits` en `k8s/backend-deployment.yml`, requisito necesario para que Kubernetes pueda calcular la utilizacion de CPU.
-
-Para comprobar el HPA:
-
-```bash
-kubectl get hpa
+```yaml
+requests:
+  cpu: 20m
+  memory: 128Mi
+limits:
+  cpu: 100m
+  memory: 256Mi
 ```
 
-Para comprobar los Deployments:
+El `request` de CPU es importante porque el HPA calcula el porcentaje de uso comparando la CPU real con la CPU solicitada. Sin `resources.requests.cpu`, Kubernetes no puede calcular correctamente la utilizacion media de CPU para el autoscaling.
 
-```bash
-kubectl get deployments
-kubectl get pods
-kubectl get services
-```
+## Prueba de estres para comprobar el HPA
 
-## Prueba de estres para HPA
-
-Con la aplicacion levantada y el `port-forward` activo en `http://localhost:8000`, se puede generar carga contra el endpoint `/stress`:
+Con la aplicacion levantada mediante `./start.sh`, se puede generar carga contra el endpoint `/stress`:
 
 ```bash
 while true; do curl -s "http://localhost:8000/stress?seconds=0.5" >/dev/null; done
 ```
 
-Para generar mas carga, abrir varias terminales con el mismo comando o usar `hey` si esta instalado:
+Para generar mas carga se pueden abrir varias terminales con el mismo comando. Si esta instalado `hey`, tambien se puede usar:
 
 ```bash
 hey -z 2m -c 30 "http://localhost:8000/stress?seconds=0.5"
 ```
 
-Mientras se ejecuta la prueba:
+Mientras se genera carga, se comprueba el escalado con:
 
 ```bash
 kubectl get hpa
@@ -187,7 +160,43 @@ kubectl get deployments
 kubectl get pods
 ```
 
-El HPA deberia aumentar progresivamente las replicas del `backend` cuando tenga metricas disponibles de `metrics-server`.
+El comportamiento esperado es que el HPA aumente progresivamente las replicas del Deployment `backend` cuando `metrics-server` tenga metricas disponibles y la CPU media supere el umbral configurado.
+
+## Comandos usados
+
+| Comando | Para que sirve |
+| --- | --- |
+| `chmod +x start.sh` | Da permisos de ejecucion al script principal. |
+| `./start.sh` | Ejecuta todo el despliegue Kubernetes de forma automatica. |
+| `chmod +x imagesEnRegistry.sh` | Da permisos de ejecucion al script de imagenes. |
+| `./imagesEnRegistry.sh` | Crea/reutiliza el registry local, construye la imagen del backend y la sube al registry. |
+| `chmod +x createCluster.sh` | Da permisos de ejecucion al script de creacion del cluster. |
+| `./createCluster.sh` | Crea/reutiliza el cluster kind y prepara `kubectl`, `metrics-server` y el HPA. |
+| `docker compose up --build` | Arranca la version original de Docker Compose y reconstruye las imagenes si hace falta. |
+| `docker run -d --name registry --restart=always -p 5000:5000 registry:2` | Crea un registry Docker local en el puerto `5000`. |
+| `docker build -t localhost:5000/music-reviews-backend:1.0 ./backend` | Construye la imagen Docker del backend Flask. |
+| `docker push localhost:5000/music-reviews-backend:1.0` | Sube la imagen del backend al registry local. |
+| `kind create cluster --config kind-config.yaml` | Crea el cluster local de Kubernetes usando kind. |
+| `kind export kubeconfig --name kind` | Configura `kubectl` para usar el cluster kind. |
+| `docker network connect kind registry` | Conecta el registry local a la red Docker usada por kind. |
+| `kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml` | Instala `metrics-server`, necesario para que el HPA tenga metricas de CPU. |
+| `kubectl patch deployment metrics-server -n kube-system ...` | Ajusta `metrics-server` para funcionar correctamente en kind con TLS inseguro y resolucion de metricas de `5s`. |
+| `docker exec kind-control-plane sed -i ... kube-controller-manager.yaml` | Modifica el controller manager para que el HPA sincronice cada `10s`. |
+| `kubectl apply -f k8s/postgres-secret.yml` | Crea el Secret con las credenciales de PostgreSQL. |
+| `kubectl apply -f k8s/postgres-deployment.yml` | Crea PostgreSQL, su Service y su volumen persistente. |
+| `kubectl apply -f k8s/backend-deployment.yml` | Crea el Deployment y el Service del backend Flask. |
+| `kubectl apply -f k8s/backend-hpa.yml` | Crea el HPA que escala el backend automaticamente. |
+| `kubectl wait --for=condition=available deployment/postgres --timeout=180s` | Espera a que PostgreSQL este disponible. |
+| `kubectl wait --for=condition=available deployment/backend --timeout=180s` | Espera a que el backend este disponible. |
+| `kubectl port-forward service/backend 8000:8000` | Expone el Service del backend en `localhost:8000`. |
+| `kubectl get nodes` | Comprueba los nodos del cluster. |
+| `kubectl get pods -A` | Muestra todos los pods de todos los namespaces. |
+| `kubectl get deployments` | Comprueba el estado de los Deployments de la aplicacion. |
+| `kubectl get services` | Muestra los Services creados. |
+| `kubectl get hpa` | Comprueba el estado del escalado automatico. |
+| `kubectl describe hpa backend-hpa` | Muestra el detalle del HPA, metricas y eventos de escalado. |
+| `kubectl logs deployment/backend` | Consulta los logs del backend Flask. |
+| `kubectl logs deployment/postgres` | Consulta los logs de PostgreSQL. |
 
 ## Estructura del proyecto
 
@@ -207,8 +216,8 @@ El HPA deberia aumentar progresivamente las replicas del `backend` cuando tenga 
 |-- docker-compose.yml
 |-- imagesEnRegistry.sh
 |-- k8s
-|   |-- backend-hpa.yml
 |   |-- backend-deployment.yml
+|   |-- backend-hpa.yml
 |   |-- postgres-deployment.yml
 |   `-- postgres-secret.yml
 |-- README.md
@@ -217,12 +226,14 @@ El HPA deberia aumentar progresivamente las replicas del `backend` cuando tenga 
     `-- paso1.md
 ```
 
-## Commit intermedio solicitado
-
-Estos son los commits que se deben indicar en la entrega de la practica hasta este punto:
+## Commits de referencia de la practica
 
 | Apartado | Commit | Estado |
 | --- | --- | --- |
-| 2.a | `f931252e227eb6a692d4429e4a8f27dbaf28ac11` | La app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments. |
-| 2.b | `7ff39b6fd05afcc93daabec4fe09742ed7c7c292` | El cluster y los Deployments estan configurados, pero no existe HPA. |
-| 2.c | `aafeefe18dc18c1ac03a8394aedfcb6c39c57f56` | La app funciona en K8s con HPA configurado y conserva vulnerabilidades sin corregir para el analisis KICS. |
+| 2.a | `f931252e227eb6a692d4429e4a8f27dbaf28ac11` | La app funciona con Docker Compose y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments. |
+| 2.b | `7ff39b6fd05afcc93daabec4fe09742ed7c7c292` | El cluster y los Deployments estan configurados, pero aun no existe HPA. |
+| 2.c | `aafeefe18dc18c1ac03a8394aedfcb6c39c57f56` | La app funciona en Kubernetes con HPA configurado y conserva vulnerabilidades sin corregir para el analisis KICS. |
+
+## Resumen para la entrega
+
+La aplicacion parte de una arquitectura Docker Compose con un backend Flask y una base de datos PostgreSQL. En la version migrada, ambos componentes se despliegan en Kubernetes: PostgreSQL mantiene los datos en un PVC, el backend se ejecuta con replicas y el acceso se realiza mediante Services. El script `start.sh` automatiza todo el proceso de construccion de imagen, preparacion del cluster, aplicacion de manifiestos y exposicion local de la aplicacion. El HPA permite escalar el backend entre 2 y 8 replicas cuando la CPU media supera el 20%.
