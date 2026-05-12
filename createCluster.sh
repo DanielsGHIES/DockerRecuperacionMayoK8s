@@ -50,41 +50,50 @@ else
 fi
 
 echo "==> Configurando metrics-server para kind..."
-kubectl patch deployment metrics-server -n kube-system \
-  --type='json' \
-  -p='[
-    {"op":"replace","path":"/spec/template/spec/containers/0/args","value":[
-      "--cert-dir=/tmp",
-      "--secure-port=10250",
-      "--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP",
-      "--kubelet-use-node-status-port",
-      "--kubelet-insecure-tls",
-      "--metric-resolution=5s"
-    ]}
-  ]' 2>/dev/null || true
+METRICS_ARGS="$(kubectl get deployment metrics-server -n kube-system -o jsonpath='{range .spec.template.spec.containers[0].args[*]}{.}{"\n"}{end}' 2>/dev/null || true)"
+if echo "$METRICS_ARGS" | grep -q -- "--kubelet-insecure-tls" && \
+   echo "$METRICS_ARGS" | grep -q -- "--metric-resolution=5s"; then
+  echo "    metrics-server ya esta configurado; no se reinicia."
+else
+  kubectl patch deployment metrics-server -n kube-system \
+    --type='json' \
+    -p='[
+      {"op":"replace","path":"/spec/template/spec/containers/0/args","value":[
+        "--cert-dir=/tmp",
+        "--secure-port=10250",
+        "--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP",
+        "--kubelet-use-node-status-port",
+        "--kubelet-insecure-tls",
+        "--metric-resolution=5s"
+      ]}
+    ]'
 
-kubectl rollout restart deployment/metrics-server -n kube-system >/dev/null
-echo "    Esperando a que metrics-server este listo..."
-if ! kubectl rollout status deployment/metrics-server -n kube-system --timeout=240s; then
-  echo "    metrics-server aun no esta listo. Estado actual:"
-  kubectl get pods -n kube-system -l k8s-app=metrics-server
-  echo "    Continuo para aplicar la app; el HPA empezara a medir cuando metrics-server quede disponible."
+  echo "    Esperando a que metrics-server este listo..."
+  if ! kubectl rollout status deployment/metrics-server -n kube-system --timeout=180s; then
+    echo "    metrics-server aun no esta listo. Estado actual:"
+    kubectl get pods -n kube-system -l k8s-app=metrics-server
+    echo "    Continuo para aplicar la app; el HPA empezara a medir cuando metrics-server quede disponible."
+  fi
 fi
 
 echo "==> Configurando HPA sync period..."
-if docker exec kind-control-plane grep -q "horizontal-pod-autoscaler-sync-period" \
+if docker exec kind-control-plane grep -q -- "--horizontal-pod-autoscaler-sync-period=10s" \
+  /etc/kubernetes/manifests/kube-controller-manager.yaml; then
+  echo "    HPA sync period ya estaba configurado."
+elif docker exec kind-control-plane grep -q "horizontal-pod-autoscaler-sync-period" \
   /etc/kubernetes/manifests/kube-controller-manager.yaml; then
   docker exec kind-control-plane sed -i \
     's/--horizontal-pod-autoscaler-sync-period=.*/--horizontal-pod-autoscaler-sync-period=10s/' \
     /etc/kubernetes/manifests/kube-controller-manager.yaml
+  echo "    Esperando reinicio del controller manager..."
+  sleep 10
 else
   docker exec kind-control-plane sed -i \
     '/- kube-controller-manager/a\    - --horizontal-pod-autoscaler-sync-period=10s' \
     /etc/kubernetes/manifests/kube-controller-manager.yaml
+  echo "    Esperando reinicio del controller manager..."
+  sleep 10
 fi
-
-echo "    Esperando reinicio del controller manager..."
-sleep 15
 
 echo ""
 echo "Cluster listo. Los Deployments de la app se aplican desde start.sh o con kubectl apply -f k8s/."
