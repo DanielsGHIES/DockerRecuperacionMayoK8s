@@ -44,20 +44,31 @@ docker network connect kind registry 2>/dev/null || echo "    El registry ya est
 
 echo "==> Instalando metrics-server..."
 if kubectl get deployment metrics-server -n kube-system >/dev/null 2>&1; then
-  echo "    metrics-server ya existe, omitiendo instalacion."
+  echo "    metrics-server ya existe, reutilizando instalacion."
 else
   kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+fi
 
-  echo "==> Configurando metrics-server para kind..."
-  kubectl patch deployment metrics-server -n kube-system \
-    --type='json' \
-    -p='[
-      {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"},
-      {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--metric-resolution=5s"}
-    ]'
+echo "==> Configurando metrics-server para kind..."
+kubectl patch deployment metrics-server -n kube-system \
+  --type='json' \
+  -p='[
+    {"op":"replace","path":"/spec/template/spec/containers/0/args","value":[
+      "--cert-dir=/tmp",
+      "--secure-port=10250",
+      "--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP",
+      "--kubelet-use-node-status-port",
+      "--kubelet-insecure-tls",
+      "--metric-resolution=5s"
+    ]}
+  ]' 2>/dev/null || true
 
-  echo "    Esperando a que metrics-server este listo..."
-  kubectl rollout status deployment/metrics-server -n kube-system --timeout=90s
+kubectl rollout restart deployment/metrics-server -n kube-system >/dev/null
+echo "    Esperando a que metrics-server este listo..."
+if ! kubectl rollout status deployment/metrics-server -n kube-system --timeout=240s; then
+  echo "    metrics-server aun no esta listo. Estado actual:"
+  kubectl get pods -n kube-system -l k8s-app=metrics-server
+  echo "    Continuo para aplicar la app; el HPA empezara a medir cuando metrics-server quede disponible."
 fi
 
 echo "==> Configurando HPA sync period..."
