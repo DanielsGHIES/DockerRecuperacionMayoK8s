@@ -6,6 +6,10 @@
   --muted: #6c5a49;
   --accent: #a34a28;
   --accent-strong: #7d2e13;
+  --disc-bg: linear-gradient(180deg, #fff6ea 0%, #f7ead9 100%);
+  --comment-bg: linear-gradient(180deg, #f2f7f6 0%, #e4f0ed 100%);
+  --comment-border: #b8d1c9;
+  --disc-border: #e2c7a3;
   --danger: #8f2d2d;
   --shadow: 0 18px 40px rgba(78, 48, 24, 0.12);
 }
@@ -151,17 +155,55 @@ button.ghost {
 .disc-card {
   padding: 1.25rem;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.65);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 250, 243, 0.72));
   border: 1px solid #eadbc8;
+  display: grid;
+  gap: 1rem;
+}
+
+.disc-info,
+.comments-panel {
+  padding: 1.1rem 1.15rem;
+  border-radius: 18px;
+}
+
+.disc-info {
+  background: var(--disc-bg);
+  border: 1px solid var(--disc-border);
+}
+
+.comments-panel {
+  background: var(--comment-bg);
+  border: 1px solid var(--comment-border);
+}
+
+.disc-info-top,
+.disc-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.disc-info-top {
+  margin-bottom: 0.75rem;
 }
 
 .disc-header h3 {
   margin-bottom: 0.3rem;
+  font-size: 1.55rem;
 }
 
 .disc-header p {
   margin-bottom: 0;
   color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.disc-stats {
+  margin: 1rem 0 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(125, 46, 19, 0.12);
 }
 
 .comments {
@@ -170,11 +212,18 @@ button.ghost {
   margin-top: 1rem;
 }
 
+.comment-composer {
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px dashed rgba(56, 110, 95, 0.28);
+}
+
 .comment-item {
   padding: 0.9rem 1rem;
   border-radius: 14px;
-  background: #fffdf9;
-  border: 1px solid #ebdece;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(113, 151, 141, 0.28);
 }
 
 .comment-item p,
@@ -196,6 +245,22 @@ button.ghost {
   border: 1px solid #ccb79a;
 }
 
+.section-tag {
+  width: fit-content;
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.section-tag-disc {
+  color: #7d2e13;
+  background: rgba(163, 74, 40, 0.12);
+}
+
 .empty {
   color: var(--muted);
 }
@@ -208,7 +273,10 @@ button.ghost {
 
   .section-heading,
   .disc-header,
-  .comment-item {
+  .comment-item,
+  .disc-info-top,
+  .disc-stats {
     flex-direction: column;
+    align-items: flex-start;
   }
 }

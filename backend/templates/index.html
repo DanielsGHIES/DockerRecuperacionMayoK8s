@@ -42,75 +42,85 @@
           <div class="disc-list">
             {% for disc in discs %}
               <article class="disc-card">
-                <div class="disc-header">
-                  <div>
-                    <h3>{{ disc.name }}</h3>
-                    <p>{{ disc.artist }}</p>
+                <div class="disc-info">
+                  <div class="disc-info-top">
+                    <p class="section-tag section-tag-disc">Ficha del disco</p>
+                    <form action="{{ url_for('delete_disc', disc_id=disc.id) }}" method="post">
+                      <button type="submit" class="danger">Eliminar</button>
+                    </form>
                   </div>
-                  <form action="{{ url_for('delete_disc', disc_id=disc.id) }}" method="post">
-                    <button type="submit" class="danger">Eliminar</button>
+
+                  <div class="disc-header">
+                    <div>
+                      <h3>{{ disc.name }}</h3>
+                      <p>{{ disc.artist }}</p>
+                    </div>
+                  </div>
+
+                  <div class="disc-stats">
+                    <p class="meta">Artista o grupo principal</p>
+                    <p class="meta">{{ disc.comment_count }} comentarios</p>
+                  </div>
+
+                  <form
+                    action="{{ url_for('edit_disc', disc_id=disc.id) }}"
+                    method="post"
+                    class="comment-form edit-block"
+                  >
+                    <label>
+                      <span>Editar disco</span>
+                      <input type="text" name="name" value="{{ disc.name }}" required />
+                    </label>
+                    <label>
+                      <span>Editar grupo o artista</span>
+                      <input type="text" name="artist" value="{{ disc.artist }}" required />
+                    </label>
+                    <button type="submit" class="ghost solid-border">Actualizar disco</button>
                   </form>
                 </div>
 
-                <p class="meta">{{ disc.comment_count }} comentarios</p>
+                <div class="comments-panel">
+                  <form
+                    action="{{ url_for('create_comment', disc_id=disc.id) }}"
+                    method="post"
+                    class="comment-form comment-composer"
+                  >
+                    <label>
+                      <span>Anadir comentario</span>
+                      <textarea
+                        name="content"
+                        rows="3"
+                        placeholder="Escribe una opinion sobre este disco"
+                        required
+                      ></textarea>
+                    </label>
+                    <button type="submit">Publicar comentario</button>
+                  </form>
 
-                <form
-                  action="{{ url_for('edit_disc', disc_id=disc.id) }}"
-                  method="post"
-                  class="comment-form edit-block"
-                >
-                  <label>
-                    <span>Editar disco</span>
-                    <input type="text" name="name" value="{{ disc.name }}" required />
-                  </label>
-                  <label>
-                    <span>Editar grupo o artista</span>
-                    <input type="text" name="artist" value="{{ disc.artist }}" required />
-                  </label>
-                  <button type="submit" class="ghost solid-border">Actualizar disco</button>
-                </form>
-
-                <form
-                  action="{{ url_for('create_comment', disc_id=disc.id) }}"
-                  method="post"
-                  class="comment-form"
-                >
-                  <label>
-                    <span>Anadir comentario</span>
-                    <textarea
-                      name="content"
-                      rows="3"
-                      placeholder="Escribe una opinion sobre este disco"
-                      required
-                    ></textarea>
-                  </label>
-                  <button type="submit">Publicar comentario</button>
-                </form>
-
-                <div class="comments">
-                  {% for comment in comments_by_disc.get(disc.id, []) %}
-                    <div class="comment-item">
-                      <div class="comment-content">
-                        <p>{{ comment.content }}</p>
+                  <div class="comments">
+                    {% for comment in comments_by_disc.get(disc.id, []) %}
+                      <div class="comment-item">
+                        <div class="comment-content">
+                          <form
+                            action="{{ url_for('edit_comment', comment_id=comment.id) }}"
+                            method="post"
+                            class="inline-edit"
+                          >
+                            <textarea name="content" rows="2" required>{{ comment.content }}</textarea>
+                            <button type="submit" class="ghost solid-border">Actualizar</button>
+                          </form>
+                        </div>
                         <form
-                          action="{{ url_for('edit_comment', comment_id=comment.id) }}"
+                          action="{{ url_for('delete_comment', comment_id=comment.id) }}"
                           method="post"
-                          class="inline-edit"
                         >
-                          <textarea name="content" rows="2" required>{{ comment.content }}</textarea>
-                          <button type="submit" class="ghost solid-border">Actualizar</button>
+                          <button type="submit" class="ghost">Borrar</button>
                         </form>
                       </div>
-                      <form
-                        action="{{ url_for('delete_comment', comment_id=comment.id) }}"
-                        method="post"
-                      >
-                        <button type="submit" class="ghost">Borrar</button>
-                      </form>
-                    </div>
-                  {% else %}
-                    <p class="empty">Todavia no hay comentarios para este disco.</p>
-                  {% endfor %}
+                    {% else %}
+                      <p class="empty">Todavia no hay comentarios para este disco.</p>
+                    {% endfor %}
+                  </div>
                 </div>
               </article>
             {% endfor %}
