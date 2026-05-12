@@ -75,5 +75,5 @@ echo "    Esperando reinicio del controller manager..."
 sleep 15
 
 echo ""
-echo "Cluster listo. En este punto aun no se crean Deployments de la app."
+echo "Cluster listo. Los Deployments de la app se aplican desde start.sh o con kubectl apply -f k8s/."
 kubectl get nodes

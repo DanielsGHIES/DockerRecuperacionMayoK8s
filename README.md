@@ -101,13 +101,14 @@ else
 fi
 ```
 
-## Estado del punto 6 del tutorial
+## Referencia del punto 6 del tutorial
 
-- La aplicacion funciona con Docker Compose mediante `./start.sh`.
+- En el commit `f931252e227eb6a692d4429e4a8f27dbaf28ac11`, la aplicacion funcionaba con Docker Compose.
 - Existe un registry local para publicar la imagen del backend.
-- Existe un cluster kind preparado para la migracion.
+- Existe un cluster kind preparado para la migracion mediante `createCluster.sh`.
 - `metrics-server` queda instalado para el HPA de los siguientes pasos.
-- Todavia no existen manifiestos `Deployment`, `Service` ni `HPA` de la aplicacion.
+- En ese commit todavia no existian manifiestos `Deployment`, `Service` ni `HPA` de la aplicacion.
+- En el estado actual del repositorio ya existen los Deployments del punto 2.b, pero todavia no existe HPA.
 
 Para comprobar el cluster:
 
@@ -171,4 +172,4 @@ kubectl get services
 ## Commit intermedio solicitado
 
 - Punto 2.a: `f931252e227eb6a692d4429e4a8f27dbaf28ac11`. En ese commit la app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments.
-- Punto 2.b: este commit contiene los manifiestos de Deployment y Service, pero aun no contiene HPA.
+- Punto 2.b: el commit de este estado contiene los manifiestos de Deployment y Service, pero aun no contiene HPA.
