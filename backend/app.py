@@ -2,7 +2,7 @@ import os
 import time
 from contextlib import closing
 
-from flask import Flask, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -100,6 +100,17 @@ def fetch_discs():
 def index():
     discs, comments_by_disc = fetch_discs()
     return render_template("index.html", discs=discs, comments_by_disc=comments_by_disc)
+
+
+@app.route("/stress", methods=["GET"])
+def stress():
+    seconds = min(float(request.args.get("seconds", "0.2")), 2.0)
+    deadline = time.perf_counter() + seconds
+    value = 0
+    while time.perf_counter() < deadline:
+        value = (value * 31 + 7) % 1000003
+
+    return jsonify({"status": "ok", "seconds": seconds, "checksum": value})
 
 
 @app.route("/discs", methods=["POST"])

@@ -37,6 +37,7 @@ if kind get clusters 2>/dev/null | grep -q "^kind$"; then
 else
   kind create cluster --config kind-config.yaml
 fi
+kind export kubeconfig --name kind
 
 echo "==> Conectando registry a la red de kind..."
 docker network connect kind registry 2>/dev/null || echo "    El registry ya estaba conectado."

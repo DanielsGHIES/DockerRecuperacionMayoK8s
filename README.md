@@ -2,7 +2,7 @@
 
 Aplicacion web multicontenedor para gestionar discos de musica y comentarios asociados.
 
-Este repositorio esta en el punto intermedio 2.b de la practica: el cluster Kubernetes ya se crea con kind y la aplicacion ya tiene Deployments y Services configurados, pero todavia no tiene HPA.
+Este repositorio esta en el punto 2.c de la practica: la aplicacion funciona en Kubernetes con Deployments, Services y HPA configurado. La version aun conserva vulnerabilidades de infraestructura para analizarlas y corregirlas en el apartado posterior con KICS.
 
 ## Tecnologias utilizadas
 
@@ -30,7 +30,7 @@ Este repositorio esta en el punto intermedio 2.b de la practica: el cluster Kube
 ./start.sh
 ```
 
-El script construye y publica la imagen del backend en el registry local, crea o reutiliza el cluster kind, aplica los manifiestos Kubernetes y abre un `port-forward`.
+El script construye y publica la imagen del backend en el registry local, crea o reutiliza el cluster kind, aplica los manifiestos Kubernetes, configura el HPA y abre un `port-forward`.
 
 La aplicacion se expone en:
 
@@ -128,7 +128,15 @@ El Secret usado por ambos Deployments esta en:
 
 - `k8s/postgres-secret.yml`: define las credenciales de PostgreSQL usadas por el contenedor de base de datos y por el backend.
 
-En este punto intermedio no existe ningun manifiesto HPA. Para comprobarlo:
+## HPA configurado
+
+El HPA se define en:
+
+- `k8s/backend-hpa.yml`: escala el `Deployment` `backend` entre 2 y 8 replicas cuando la CPU media supera el 20%.
+
+El backend declara `resources.requests` y `resources.limits` en `k8s/backend-deployment.yml`, requisito necesario para que Kubernetes pueda calcular la utilizacion de CPU.
+
+Para comprobar el HPA:
 
 ```bash
 kubectl get hpa
@@ -141,6 +149,30 @@ kubectl get deployments
 kubectl get pods
 kubectl get services
 ```
+
+## Prueba de estres para HPA
+
+Con la aplicacion levantada y el `port-forward` activo en `http://localhost:8000`, se puede generar carga contra el endpoint `/stress`:
+
+```bash
+while true; do curl -s "http://localhost:8000/stress?seconds=0.5" >/dev/null; done
+```
+
+Para generar mas carga, abrir varias terminales con el mismo comando o usar `hey` si esta instalado:
+
+```bash
+hey -z 2m -c 30 "http://localhost:8000/stress?seconds=0.5"
+```
+
+Mientras se ejecuta la prueba:
+
+```bash
+kubectl get hpa
+kubectl get deployments
+kubectl get pods
+```
+
+El HPA deberia aumentar progresivamente las replicas del `backend` cuando tenga metricas disponibles de `metrics-server`.
 
 ## Estructura del proyecto
 
@@ -160,6 +192,7 @@ kubectl get services
 |-- docker-compose.yml
 |-- imagesEnRegistry.sh
 |-- k8s
+|   |-- backend-hpa.yml
 |   |-- backend-deployment.yml
 |   |-- postgres-deployment.yml
 |   `-- postgres-secret.yml
@@ -177,5 +210,4 @@ Estos son los commits que se deben indicar en la entrega de la practica hasta es
 | --- | --- | --- |
 | 2.a | `f931252e227eb6a692d4429e4a8f27dbaf28ac11` | La app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments. |
 | 2.b | `7ff39b6fd05afcc93daabec4fe09742ed7c7c292` | El cluster y los Deployments estan configurados, pero no existe HPA. |
-
-El apartado 2.c se completara en un commit posterior, cuando la aplicacion tenga HPA configurado y funcionando.
+| 2.c | Pendiente de sustituir por el commit final de este estado | La app funciona en K8s con HPA configurado y conserva vulnerabilidades sin corregir para el analisis KICS. |
