@@ -162,4 +162,4 @@ kubectl get services
 ## Commit intermedio solicitado
 
 - Punto 2.a: `f931252e227eb6a692d4429e4a8f27dbaf28ac11`. En ese commit la app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments.
-- Punto 2.b: el commit de este estado contiene los manifiestos de Deployment y Service.
+- Punto 2.b: `6c07778fe90853d6f656d15b55011ec892538823`. Este commit contiene los manifiestos de Deployment y Service.
