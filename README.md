@@ -2,7 +2,7 @@
 
 Aplicacion web multicontenedor para gestionar discos de musica y comentarios asociados.
 
-Este repositorio esta en el punto intermedio 2.b de la practica: el cluster Kubernetes ya se crea con kind y la aplicacion ya tiene Deployments y Services configurados, pero todavia no tiene HPA.
+Este repositorio esta en el punto intermedio 2.b de la practica: el cluster Kubernetes ya se crea con kind y la aplicacion ya tiene Deployments y Services configurados.
 
 ## Tecnologias utilizadas
 
@@ -12,7 +12,6 @@ Este repositorio esta en el punto intermedio 2.b de la practica: el cluster Kube
 - Docker Compose
 - kind
 - kubectl
-- metrics-server
 
 ## Funcionalidades
 
@@ -80,8 +79,6 @@ El cluster se crea en el archivo `createCluster.sh`. Este script:
 - Genera `kind-config.yaml`.
 - Crea el cluster `kind`.
 - Conecta el registry local a la red de kind.
-- Instala `metrics-server`.
-- Ajusta `metrics-server` y el periodo de sincronizacion del HPA para pruebas posteriores.
 
 Comandos:
 
@@ -106,9 +103,8 @@ fi
 - En el commit `f931252e227eb6a692d4429e4a8f27dbaf28ac11`, la aplicacion funcionaba con Docker Compose.
 - Existe un registry local para publicar la imagen del backend.
 - Existe un cluster kind preparado para la migracion mediante `createCluster.sh`.
-- `metrics-server` queda instalado para el HPA de los siguientes pasos.
-- En ese commit todavia no existian manifiestos `Deployment`, `Service` ni `HPA` de la aplicacion.
-- En el estado actual del repositorio ya existen los Deployments del punto 2.b, pero todavia no existe HPA.
+- En ese commit todavia no existian manifiestos `Deployment` ni `Service` de la aplicacion.
+- En el estado actual del repositorio ya existen los Deployments del punto 2.b.
 
 Para comprobar el cluster:
 
@@ -127,12 +123,6 @@ Los Deployment de la aplicacion se definen en estos archivos:
 El Secret usado por ambos Deployments esta en:
 
 - `k8s/postgres-secret.yml`: define las credenciales de PostgreSQL usadas por el contenedor de base de datos y por el backend.
-
-En este punto intermedio no existe ningun manifiesto HPA. Para comprobarlo:
-
-```bash
-kubectl get hpa
-```
 
 Para comprobar los Deployments:
 
@@ -172,4 +162,4 @@ kubectl get services
 ## Commit intermedio solicitado
 
 - Punto 2.a: `f931252e227eb6a692d4429e4a8f27dbaf28ac11`. En ese commit la app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments.
-- Punto 2.b: el commit de este estado contiene los manifiestos de Deployment y Service, pero aun no contiene HPA.
+- Punto 2.b: el commit de este estado contiene los manifiestos de Deployment y Service.

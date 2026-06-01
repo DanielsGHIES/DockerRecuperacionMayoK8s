@@ -24,7 +24,7 @@ A lo largo de esta guía se distinguen dos tipos de pasos:
 7. [Escribir los manifiestos: Deployments y Services](#7--escribir-los-manifiestos-deployments-y-services)
 8. [Gestionar secretos con kubectl secret](#8--gestionar-secretos-con-kubectl-secret)
 9. [Ajustar puertos no privilegiados](#9--ajustar-puertos-no-privilegiados)
-10. [Añadir límites de recursos y HPA](#10--a%C3%B1adir-l%C3%ADmites-de-recursos-y-hpa)
+10. [Añadir límites de recursos](#10--a%C3%B1adir-l%C3%ADmites-de-recursos)
 11. [Aplicar los manifiestos](#11--aplicar-los-manifiestos)
 12. [Crear script de arranque](#12--crear-script-de-arranque)
 13. [Solución de errores de sesión](#13--soluci%C3%B3n-de-errores-de-sesi%C3%B3n)
@@ -67,7 +67,7 @@ Antes de migrar, es fundamental entender que cada concepto de Docker Compose tie
 | `environment` / `.env`    | `env` en spec / `ConfigMap` / `Secret` | Los datos sensibles van en Secret; el resto en env o ConfigMap    |
 | `depends_on`              | `readinessProbe` / `initContainers`    | K8s no tiene `depends_on`; usa sondas de salud                    |
 | `build` (imagen local)    | Imagen en registro externo             | K8s no construye imágenes; las descarga siempre de un registro    |
-| `scale` (`--scale web=3`) | `replicas` / `HorizontalPodAutoscaler` | K8s puede escalar automáticamente según CPU/memoria               |
+| `scale` (`--scale web=3`) | `replicas`                             | K8s permite definir cuantas replicas debe mantener el Deployment  |
 
 ---
 
@@ -224,8 +224,6 @@ Para generar el clúster debemos:
 - Generar archivo kind-config.yaml
 - Crear el clúster
 - Conectar el registry a la red de kind
-- Instalar metrics server para el escalado posterior
-- Configurar metrics-server y HPA
 
 Por comodidad, lo crearemos todo con el siguiente script `createCluster.sh`:
 
@@ -279,45 +277,6 @@ fi
 # ── 5. Conectar el registry a la red de kind ────────────────────
 echo "==> Conectando registry a la red de kind..."
 docker network connect kind registry 2>/dev/null || echo "    Ya estaba conectado."
-
-# ── 6. Instalar metrics-server si no está ───────────────────────
-echo "==> Instalando metrics-server..."
-if kubectl get deployment metrics-server -n kube-system &>/dev/null; then
-  echo "    metrics-server ya existe, omitiendo instalación."
-else
-  kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-
-  # ── 7. Configurar metrics-server para kind y resolución rápida ──
-  echo "==> Configurando metrics-server..."
-  kubectl patch deployment metrics-server -n kube-system \
-    --type='json' \
-    -p='[
-      {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"},
-      {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--metric-resolution=5s"}
-    ]'
-
-  echo "    Esperando a que metrics-server esté listo..."
-  kubectl rollout status deployment/metrics-server \
-    -n kube-system --timeout=90s
-fi
-
-# ── 8. Configurar HPA sync period a 10s ─────────────────────────
-echo "==> Configurando HPA sync period..."
-if docker exec kind-control-plane grep -q "horizontal-pod-autoscaler-sync-period" \
-  /etc/kubernetes/manifests/kube-controller-manager.yaml; then
-  # Con esto modificamos la tasa de muestreo por defecto de 15s a 10s.
-  docker exec kind-control-plane sed -i \
-    's/--horizontal-pod-autoscaler-sync-period=.*/--horizontal-pod-autoscaler-sync-period=10s/' \
-    /etc/kubernetes/manifests/kube-controller-manager.yaml
-  echo "    Parámetro actualizado."
-else
-  docker exec kind-control-plane sed -i \
-    '/- kube-controller-manager/a\    - --horizontal-pod-autoscaler-sync-period=10s' \
-    /etc/kubernetes/manifests/kube-controller-manager.yaml
-  echo "    Parámetro añadido."
-fi
-echo "    Esperando reinicio del controller manager..."
-sleep 15
 
 echo ""
 echo "✅ Clúster listo."
@@ -416,7 +375,7 @@ spec:
             secretKeyRef:
               name: flask-secret
               key: secret-key
-        resources:               # necesario para que HPA funcione
+        resources:               # define solicitudes y limites del contenedor
           requests:
             memory: "64Mi"
             cpu: "10m"
@@ -534,49 +493,23 @@ Este cambio obliga a ajustar el `targetPort` del Service de Nginx para que apunt
 
 ---
 
-## 10. 🟢 Añadir límites de recursos y HPA
+## 10. 🟢 Añadir límites de recursos
 
-Docker Compose no tiene un sistema nativo de autoscaling. En Kubernetes podemos añadir un **HorizontalPodAutoscaler (HPA)** que ajuste automáticamente el número de réplicas del servicio `web` en función del uso de CPU.
+En Kubernetes conviene declarar solicitudes y limites de recursos para que el scheduler pueda reservar capacidad y para evitar que un contenedor consuma recursos sin control.
 
-Para que el HPA funcione, el Deployment **debe declarar** `resources.requests` (ya hecho en el Paso 7.2). Sin ello, el scheduler no puede calcular el porcentaje de uso.
+El Deployment puede declarar `resources.requests` y `resources.limits` dentro del contenedor:
 
 ```yaml
-# k8s/web-hpa.yaml
-
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: web-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: web
-  minReplicas: 1
-  maxReplicas: 8
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 20    # escala si CPU media > 20%
-  behavior:
-    scaleUp:
-      stabilizationWindowSeconds: 10       # espera 10s antes de escalar
-      policies:
-      - type: Pods
-        value: 4
-        periodSeconds: 10                  # añade hasta 4 pods cada 10s
-    scaleDown:
-      stabilizationWindowSeconds: 10       # espera 10s antes de bajar
-      policies:
-      - type: Pods
-        value: 2
-        periodSeconds: 10                  # elimina hasta 2 pods cada 10s
+resources:
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
 ```
 
-> ⚠️ Los umbrales (`averageUtilization: 20` y `stabilizationWindowSeconds: 10`) están ajustados para que sea fácil ver el efecto del escalado en entorno de laboratorio de pruebas. En producción se usarían valores más conservadores: 60–80% de CPU y ventanas de estabilización de 5–15 minutos para evitar oscilaciones (*flapping*).
+Estos valores se ajustan segun el consumo real de la aplicacion y la capacidad disponible del cluster.
 
 ---
 
@@ -591,13 +524,12 @@ kubectl apply -f k8s/
 # service/web created
 # deployment.apps/nginx created
 # service/nginx created
-# horizontalpodautoscaler.autoscaling/web-hpa created
 
 # 2. Esperar a que todos los pods estén Running
 kubectl wait --for=condition=ready pod --all --timeout=120s
 
 # 3. Ver el estado general
-kubectl get pods,svc,hpa
+kubectl get pods,svc
 
 # 4. Exponer localmente (en entornos sin LoadBalancer externo)
 kubectl port-forward service/nginx 8080:80
@@ -762,35 +694,24 @@ Esperamos a que los dos pods `web` muestren `Running` con `RESTARTS` a 0, y ento
 
 ---
 
-## 14. 🟢 Verificar funcionamiento del escalado
+## 14. 🟢 Verificar funcionamiento
 
-El HPA que configuramos en el paso 10 escala automáticamente el número de réplicas del servicio `web` en función del uso de CPU. Para comprobarlo necesitamos dos terminales abiertas a la vez.
+Para comprobar que la aplicacion responde desde Kubernetes se puede observar el estado de los pods y generar peticiones al Service.
 
-**Terminal 1 — monitorización en tiempo real:**
+**Terminal 1 — monitorizacion en tiempo real:**
 
 ```bash
-watch -n 2 'kubectl get pods,hpa'
+watch -n 2 'kubectl get pods,svc'
 ```
 
-Esto refresca cada 2 segundos y muestra los pods activos y el estado del HPA. La columna `TARGETS` indica el uso actual de CPU frente al umbral configurado:
-
-```text
-NAME      REFERENCE        TARGETS       MINPODS   MAXPODS   REPLICAS
-web-hpa   Deployment/web   48%/20%       1         8         4
-```
-
-**Terminal 2 — generar carga:**
+**Terminal 2 — generar peticiones:**
 
 ```bash
 kubectl run stress --image=busybox --restart=Never -it --rm \
   -- sh -c "while true; do wget -q -O- http://web:5000/; done"
 ```
 
-Este pod temporal se lanza dentro del clúster y bombardea el Service `web` directamente, repartiendo el tráfico entre todas las réplicas activas. En la terminal 1 deberías ver cómo en unos 10-15 segundos el porcentaje de CPU sube por encima del 20% y el número de pods `web` empieza a crecer hasta el máximo de 8.
-
-**Para probar el desescalado**, para el pod de stress con `Ctrl+C` en la terminal 2. Con la configuración actual el HPA esperará la ventana de estabilización de 10 segundos y comenzará a reducir réplicas de 2 en 2 cada 10 segundos hasta volver al mínimo de 1.
-
-> **¿Por qué tarda entre 10 y 15 segundos en reaccionar?** El metrics-server recoge métricas cada 5 segundos (`--metric-resolution=5s`) y el HPA las consulta cada 10 segundos (`--horizontal-pod-autoscaler-sync-period=10s`). La latencia máxima es la suma de ambos. Estos valores están reducidos respecto a los valores por defecto (15s + 15s) precisamente para que el efecto sea visible en fase de pruebas.
+Este pod temporal se lanza dentro del cluster y envia peticiones al Service `web` directamente, repartiendo el trafico entre las replicas activas.
 
 ---
 
