@@ -211,4 +211,4 @@ El HPA deberia aumentar progresivamente las replicas del `backend` cuando tenga 
 
 - Punto 2.a: `f931252e227eb6a692d4429e4a8f27dbaf28ac11`. En ese commit la app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments.
 - Punto 2.b: `6c07778fe90853d6f656d15b55011ec892538823`. Este commit contiene los manifiestos de Deployment y Service.
-- Apartado 3.c: pendiente de registrar tras crear el commit funcional con HPA.
+- Apartado 3.c: `a1b5d98aa7894584f7ab3c333e9397a4bd3d2116`. La app funciona en K8s con HPA configurado y conserva vulnerabilidades sin corregir.
