@@ -2,7 +2,7 @@
 
 Aplicacion web multicontenedor para gestionar discos de musica y comentarios asociados.
 
-Este repositorio esta en el punto intermedio 2.b de la practica: el cluster Kubernetes ya se crea con kind y la aplicacion ya tiene Deployments y Services configurados.
+Este repositorio esta en el apartado 3.c de la practica: la aplicacion funciona en Kubernetes con Deployments, Services y HPA configurado. La version conserva las vulnerabilidades existentes para analizarlas posteriormente, sin corregir ninguna.
 
 ## Tecnologias utilizadas
 
@@ -12,6 +12,7 @@ Este repositorio esta en el punto intermedio 2.b de la practica: el cluster Kube
 - Docker Compose
 - kind
 - kubectl
+- metrics-server
 
 ## Funcionalidades
 
@@ -29,7 +30,7 @@ Este repositorio esta en el punto intermedio 2.b de la practica: el cluster Kube
 ./start.sh
 ```
 
-El script construye y publica la imagen del backend en el registry local, crea o reutiliza el cluster kind, aplica los manifiestos Kubernetes y abre un `port-forward`.
+El script construye y publica la imagen del backend en el registry local, crea o reutiliza el cluster kind, aplica los manifiestos Kubernetes, configura el HPA y abre un `port-forward`.
 
 La aplicacion se expone en:
 
@@ -79,6 +80,8 @@ El cluster se crea en el archivo `createCluster.sh`. Este script:
 - Genera `kind-config.yaml`.
 - Crea el cluster `kind`.
 - Conecta el registry local a la red de kind.
+- Instala `metrics-server`.
+- Ajusta `metrics-server` y el periodo de sincronizacion del HPA para facilitar las pruebas.
 
 Comandos:
 
@@ -103,8 +106,8 @@ fi
 - En el commit `f931252e227eb6a692d4429e4a8f27dbaf28ac11`, la aplicacion funcionaba con Docker Compose.
 - Existe un registry local para publicar la imagen del backend.
 - Existe un cluster kind preparado para la migracion mediante `createCluster.sh`.
-- En ese commit todavia no existian manifiestos `Deployment` ni `Service` de la aplicacion.
-- En el estado actual del repositorio ya existen los Deployments del punto 2.b.
+- En ese commit todavia no existian manifiestos `Deployment`, `Service` ni `HPA` de la aplicacion.
+- En el estado actual del repositorio ya existen los Deployments del punto 2.b y el HPA del apartado 3.c.
 
 Para comprobar el cluster:
 
@@ -124,6 +127,26 @@ El Secret usado por ambos Deployments esta en:
 
 - `k8s/postgres-secret.yml`: define las credenciales de PostgreSQL usadas por el contenedor de base de datos y por el backend.
 
+## HPA configurado
+
+El HPA se define en:
+
+- `k8s/backend-hpa.yml`: escala el `Deployment` `backend` entre 2 y 8 replicas cuando la CPU media supera el 20%.
+
+El componente que escala es el backend Flask:
+
+- Deployment escalado: `backend`.
+- Pods escalados: los pods creados por ese Deployment con etiqueta `app=backend`.
+- Service asociado: `backend`, que reparte el trafico entre las replicas disponibles.
+
+El backend declara `resources.requests` y `resources.limits` en `k8s/backend-deployment.yml`, requisito necesario para que Kubernetes pueda calcular la utilizacion de CPU.
+
+Para comprobar el HPA:
+
+```bash
+kubectl get hpa
+```
+
 Para comprobar los Deployments:
 
 ```bash
@@ -131,6 +154,30 @@ kubectl get deployments
 kubectl get pods
 kubectl get services
 ```
+
+## Prueba de estres para HPA
+
+Con la aplicacion levantada y el `port-forward` activo en `http://localhost:8000`, se puede generar carga contra el endpoint `/stress`:
+
+```bash
+while true; do curl -s "http://localhost:8000/stress?seconds=0.5" >/dev/null; done
+```
+
+Para generar mas carga, abre varias terminales con el mismo comando o usa `hey` si esta instalado:
+
+```bash
+hey -z 2m -c 30 "http://localhost:8000/stress?seconds=0.5"
+```
+
+Mientras se ejecuta la prueba:
+
+```bash
+kubectl get hpa
+kubectl get deployments
+kubectl get pods
+```
+
+El HPA deberia aumentar progresivamente las replicas del `backend` cuando tenga metricas disponibles de `metrics-server`.
 
 ## Estructura del proyecto
 
@@ -150,6 +197,7 @@ kubectl get services
 |-- docker-compose.yml
 |-- imagesEnRegistry.sh
 |-- k8s
+|   |-- backend-hpa.yml
 |   |-- backend-deployment.yml
 |   |-- postgres-deployment.yml
 |   `-- postgres-secret.yml
@@ -163,3 +211,4 @@ kubectl get services
 
 - Punto 2.a: `f931252e227eb6a692d4429e4a8f27dbaf28ac11`. En ese commit la app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments.
 - Punto 2.b: `6c07778fe90853d6f656d15b55011ec892538823`. Este commit contiene los manifiestos de Deployment y Service.
+- Apartado 3.c: pendiente de registrar tras crear el commit funcional con HPA.
