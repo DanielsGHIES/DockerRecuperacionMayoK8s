@@ -12,10 +12,26 @@ spec:
       labels:
         app: backend
     spec:
+      automountServiceAccountToken: false
+      # KICS: vulnerabilidad corregida: el pod no definia seccompProfile.
+      # Configuracion anterior: sin securityContext de pod.
+      # Vulnerabilidad existente en la version 2.c.
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: backend
           image: localhost:5000/music-reviews-backend:1.0
           imagePullPolicy: Always
+          # KICS: vulnerabilidad corregida: contenedor sin restricciones explicitas de privilegios.
+          # Configuracion anterior: no se indicaba runAsNonRoot, allowPrivilegeEscalation ni drop de capabilities.
+          # Vulnerabilidad existente en la version 2.c.
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 8000
           env:

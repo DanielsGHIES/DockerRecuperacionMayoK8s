@@ -2,7 +2,7 @@
 
 Aplicacion web Flask + PostgreSQL con CRUD de discos y comentarios.
 
-Este repositorio corresponde a la practica de recuperacion: migracion de una app Docker multicontenedor a Kubernetes con HPA. El estado actual es la version 2.c/3.c funcional en K8s con HPA configurado. La app conserva vulnerabilidades sin corregir.
+Este repositorio corresponde a la practica de recuperacion: migracion de una app Docker multicontenedor a Kubernetes con HPA y posterior analisis de infraestructura. El commit indicado como 2.c conserva las vulnerabilidades sin corregir; el estado actual inicia el apartado 3 con correcciones documentadas.
 
 ## 1. Aplicacion Docker
 
@@ -38,10 +38,11 @@ El script construye la imagen, prepara el cluster, instala/configura `metrics-se
 
 Manifiestos principales:
 
-- `k8s/postgres-secret.yml`
 - `k8s/postgres-deployment.yml`
 - `k8s/backend-deployment.yml`
 - `k8s/backend-hpa.yml`
+
+El Secret de PostgreSQL se crea durante el arranque desde `start.sh` para no guardar la password en un manifiesto YAML.
 
 Comprobacion:
 
@@ -110,3 +111,36 @@ watch -n 2 'kubectl get hpa; kubectl top pods'
 ```
 
 Tiempo estimado de arranque completo con `./start.sh`: unos 5 minutos.
+
+## 3. Analisis con KICS
+
+Informe HTML a generar con KICS:
+
+- `kics-results/kics-report.html`
+
+Comando usado para generar el informe:
+
+```powershell
+docker run --rm -v "${PWD}:/path" checkmarx/kics:latest scan -p /path/k8s -o /path/kics-results --report-formats html,json --output-name kics-report
+```
+
+En PowerShell se usa `${PWD}` porque `"$PWD:/path"` se interpreta como una variable no valida por el caracter `:`.
+
+Archivos con vulnerabilidades corregidas:
+
+- `k8s/backend-deployment.yml`
+- `k8s/postgres-deployment.yml`
+- `start.sh`
+
+Vulnerabilidad corregida:
+
+- Contenedores y pods sin contexto de seguridad explicito.
+- Configuracion anterior: los manifiestos no declaraban `securityContext`, `seccompProfile`, `allowPrivilegeEscalation` ni eliminaban Linux capabilities.
+- Configuracion actual: se anade `seccompProfile: RuntimeDefault`, ejecucion sin root cuando corresponde, `allowPrivilegeEscalation: false` y `capabilities.drop: ALL`.
+- La vulnerabilidad era existente en la version 2.c, no introducida a proposito.
+- Secret de PostgreSQL con password escrito en YAML.
+- Configuracion anterior: `k8s/postgres-secret.yml` contenia `POSTGRES_PASSWORD` en `stringData`.
+- Configuracion actual: el Secret se genera en `start.sh` durante el arranque con `kubectl create secret ... --dry-run=client -o yaml | kubectl apply -f -`.
+- Volumen persistente de PostgreSQL montado en ruta de sistema.
+- Configuracion anterior: el PVC se montaba en `/var/lib/postgresql/data`.
+- Configuracion actual: el PVC se monta en `/postgres-data` y PostgreSQL usa `PGDATA=/postgres-data/pgdata`.

@@ -7,8 +7,17 @@ bash imagesEnRegistry.sh
 echo "==> Preparando cluster Kubernetes..."
 bash createCluster.sh
 
+echo "==> Creando Secret de PostgreSQL..."
+# KICS: vulnerabilidad corregida: el password de PostgreSQL estaba escrito en postgres-secret.yml.
+# Configuracion anterior: Secret Kubernetes con stringData y POSTGRES_PASSWORD en texto plano.
+# Vulnerabilidad existente en la version 2.c; ahora se genera en tiempo de arranque.
+kubectl create secret generic postgres-secret \
+  --from-literal=POSTGRES_DB="${POSTGRES_DB:-music_reviews}" \
+  --from-literal=POSTGRES_USER="${POSTGRES_USER:-music_user}" \
+  --from-literal=POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-music_password}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 echo "==> Aplicando manifiestos Kubernetes..."
-kubectl apply -f k8s/postgres-secret.yml
 kubectl apply -f k8s/postgres-deployment.yml
 kubectl apply -f k8s/backend-deployment.yml
 kubectl apply -f k8s/backend-hpa.yml

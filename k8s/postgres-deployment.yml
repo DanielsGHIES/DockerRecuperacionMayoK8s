@@ -23,17 +23,49 @@ spec:
       labels:
         app: postgres
     spec:
+      automountServiceAccountToken: false
+      # KICS: vulnerabilidad corregida: el pod no definia contexto de seguridad.
+      # Configuracion anterior: PostgreSQL se ejecutaba sin seccompProfile ni usuario/grupo declarados.
+      # Vulnerabilidad existente en la version 2.c.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:16-alpine
+          # KICS: vulnerabilidad corregida: contenedor sin restricciones explicitas de privilegios.
+          # Configuracion anterior: no se bloqueaba la escalada de privilegios ni se eliminaban capabilities.
+          # Vulnerabilidad existente en la version 2.c.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 5432
           envFrom:
             - secretRef:
                 name: postgres-secret
+          env:
+            # KICS: vulnerabilidad corregida: el volumen persistente se montaba directamente en /var/lib/postgresql/data.
+            # Configuracion anterior: mountPath /var/lib/postgresql/data, ruta de sistema marcada como HIGH por KICS.
+            # Vulnerabilidad existente en la version 2.c.
+            - name: PGDATA
+              value: /postgres-data/pgdata
           volumeMounts:
             - name: postgres-data
-              mountPath: /var/lib/postgresql/data
+              mountPath: /postgres-data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
