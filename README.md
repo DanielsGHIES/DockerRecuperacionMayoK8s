@@ -1,214 +1,112 @@
-# Music Reviews App - migracion a Kubernetes
+# Music Reviews App - Docker a Kubernetes
 
-Aplicacion web multicontenedor para gestionar discos de musica y comentarios asociados.
+Aplicacion web Flask + PostgreSQL con CRUD de discos y comentarios.
 
-Este repositorio esta en el apartado 3.c de la practica: la aplicacion funciona en Kubernetes con Deployments, Services y HPA configurado. La version conserva las vulnerabilidades existentes para analizarlas posteriormente, sin corregir ninguna.
+Este repositorio corresponde a la practica de recuperacion: migracion de una app Docker multicontenedor a Kubernetes con HPA. El estado actual es la version 2.c/3.c funcional en K8s con HPA configurado. La app conserva vulnerabilidades sin corregir.
 
-## Tecnologias utilizadas
+## 1. Aplicacion Docker
 
-- Flask
-- PostgreSQL
-- Docker
-- Docker Compose
-- kind
-- kubectl
-- metrics-server
-
-## Funcionalidades
-
-- Crear discos con nombre y grupo o artista.
-- Listar discos almacenados.
-- Editar discos almacenados.
-- Anadir comentarios a cada disco.
-- Ver comentarios por disco.
-- Editar comentarios.
-- Eliminar discos y comentarios.
-
-## Como ejecutar la aplicacion en Kubernetes
-
-```bash
-./start.sh
-```
-
-El script construye y publica la imagen del backend en el registry local, crea o reutiliza el cluster kind, aplica los manifiestos Kubernetes, configura el HPA y abre un `port-forward`.
-
-La aplicacion se expone en:
-
-```text
-http://localhost:8000
-```
-
-Para detener el `port-forward`, pulsa `Ctrl+C`.
-
-## Como ejecutar la version Docker original
-
-La version Docker Compose se conserva para comprobar el punto 2.a:
+Arranque:
 
 ```bash
 docker compose up --build
 ```
 
-Tambien se expone en:
+URL:
 
 ```text
 http://localhost:8000
 ```
 
-La base de datos PostgreSQL persiste en el volumen Docker `postgres_data`.
+Comprobacion minima:
 
-## Preparacion de imagen para Kubernetes
+- Backend Flask.
+- Base de datos PostgreSQL persistente.
+- CRUD de discos y comentarios.
+- Archivo principal: `docker-compose.yml`.
 
-El backend se construye como imagen portable y se sube a un registry local:
+## 2. Migracion a Kubernetes
 
-```bash
-chmod +x imagesEnRegistry.sh
-./imagesEnRegistry.sh
-```
-
-Imagen generada:
-
-```text
-localhost:5000/music-reviews-backend:1.0
-```
-
-## Creacion del cluster Kubernetes
-
-El cluster se crea en el archivo `createCluster.sh`. Este script:
-
-- Verifica o instala `kind`.
-- Verifica o instala `kubectl`.
-- Genera `kind-config.yaml`.
-- Crea el cluster `kind`.
-- Conecta el registry local a la red de kind.
-- Instala `metrics-server`.
-- Ajusta `metrics-server` y el periodo de sincronizacion del HPA para facilitar las pruebas.
-
-Comandos:
+Arranque principal:
 
 ```bash
-chmod +x createCluster.sh
-./createCluster.sh
+chmod +x start.sh
+./start.sh
 ```
 
-La parte exacta de la aplicacion donde se crea el cluster esta en `createCluster.sh`, en este bloque:
+El script construye la imagen, prepara el cluster, instala/configura `metrics-server`, aplica los manifiestos y abre el acceso local.
 
-```bash
-echo "==> Creando cluster kind..."
-if kind get clusters 2>/dev/null | grep -q "^kind$"; then
-  echo "    El cluster 'kind' ya existe, omitiendo creacion."
-else
-  kind create cluster --config kind-config.yaml
-fi
-```
+Manifiestos principales:
 
-## Referencia del punto 6 del tutorial
+- `k8s/postgres-secret.yml`
+- `k8s/postgres-deployment.yml`
+- `k8s/backend-deployment.yml`
+- `k8s/backend-hpa.yml`
 
-- En el commit `f931252e227eb6a692d4429e4a8f27dbaf28ac11`, la aplicacion funcionaba con Docker Compose.
-- Existe un registry local para publicar la imagen del backend.
-- Existe un cluster kind preparado para la migracion mediante `createCluster.sh`.
-- En ese commit todavia no existian manifiestos `Deployment`, `Service` ni `HPA` de la aplicacion.
-- En el estado actual del repositorio ya existen los Deployments del punto 2.b y el HPA del apartado 3.c.
-
-Para comprobar el cluster:
-
-```bash
-kubectl get nodes
-kubectl get pods -A
-```
-
-## Deployments configurados
-
-Los Deployment de la aplicacion se definen en estos archivos:
-
-- `k8s/postgres-deployment.yml`: define el `Deployment` de PostgreSQL, el `Service` interno `postgres` y el `PersistentVolumeClaim` `postgres-data`.
-- `k8s/backend-deployment.yml`: define el `Deployment` del backend Flask con 2 replicas y el `Service` interno `backend`.
-
-El Secret usado por ambos Deployments esta en:
-
-- `k8s/postgres-secret.yml`: define las credenciales de PostgreSQL usadas por el contenedor de base de datos y por el backend.
-
-## HPA configurado
-
-El HPA se define en:
-
-- `k8s/backend-hpa.yml`: escala el `Deployment` `backend` entre 2 y 8 replicas cuando la CPU media supera el 20%.
-
-El componente que escala es el backend Flask:
-
-- Deployment escalado: `backend`.
-- Pods escalados: los pods creados por ese Deployment con etiqueta `app=backend`.
-- Service asociado: `backend`, que reparte el trafico entre las replicas disponibles.
-
-El backend declara `resources.requests` y `resources.limits` en `k8s/backend-deployment.yml`, requisito necesario para que Kubernetes pueda calcular la utilizacion de CPU.
-
-Para comprobar el HPA:
-
-```bash
-kubectl get hpa
-```
-
-Para comprobar los Deployments:
+Comprobacion:
 
 ```bash
 kubectl get deployments
 kubectl get pods
 kubectl get services
+kubectl get hpa
+kubectl top pods
 ```
 
-## Prueba de estres para HPA
+## HPA y prueba de estres
 
-Para hacer la prueba de estres en PowerShell, usa tres terminales.
+Condiciones de escalado:
 
-Terminal 1: abre el `port-forward` y dejalo activo:
+- HPA: `backend-hpa`.
+- Deployment escalado: `backend`.
+- Minimo: 2 replicas.
+- Maximo: 8 replicas.
+- Metrica: CPU media.
+- Umbral: 20%.
 
-```powershell
+Prueba en GitHub Codespaces o Bash, usando tres terminales:
+
+```bash
 kubectl port-forward service/backend 8001:8000
 ```
 
-Terminal 2: monitoriza el HPA cada 2 segundos:
-
-```powershell
-while ($true) { kubectl get hpa; Start-Sleep -Seconds 2; Clear-Host }
+```bash
+while true; do curl -s "http://localhost:8001/stress?seconds=0.5" >/dev/null; done
 ```
 
-Terminal 3: genera carga contra el endpoint `/stress`:
-
-```powershell
-while ($true) { curl.exe -s "http://localhost:8001/stress?seconds=0.5" > $null }
+```bash
+watch -n 2 'kubectl get hpa; kubectl top pods'
 ```
 
+Resultado esperado: el HPA muestra un porcentaje de CPU, supera el 20% durante la carga y aumenta las replicas del backend.
 
+## Commits solicitados
 
-## Estructura del proyecto
+| Apartado | Commit | Que demuestra |
+| --- | --- | --- |
+| 2.a | `f931252e227eb6a692d4429e4a8f27dbaf28ac11` | App Docker funcional y creacion del cluster, sin Deployments. |
+| 2.b | `6c07778fe90853d6f656d15b55011ec892538823` | Cluster, Deployments y Services configurados, sin HPA. |
+| 2.c / 3.c | `a1b5d98aa7894584f7ab3c333e9397a4bd3d2116` | App funcional en K8s con HPA configurado, sin corregir vulnerabilidades. |
 
-```text
-.
-|-- backend
-|   |-- app.py
-|   |-- Dockerfile
-|   |-- requirements.txt
-|   |-- static
-|   |   `-- styles.css
-|   `-- templates
-|       `-- index.html
-|-- db
-|   `-- init.sql
-|-- createCluster.sh
-|-- docker-compose.yml
-|-- imagesEnRegistry.sh
-|-- k8s
-|   |-- backend-hpa.yml
-|   |-- backend-deployment.yml
-|   |-- postgres-deployment.yml
-|   `-- postgres-secret.yml
-|-- README.md
-|-- start.sh
-`-- steps
-    `-- paso1.md
+Creacion del cluster solicitada en 2.a:
+
+- Archivo: `createCluster.sh`.
+- Bloque: seccion `echo "==> Creando cluster kind..."`, donde se ejecuta `kind create cluster --config kind-config.yaml` si el cluster no existe.
+
+Archivos de Deployments solicitados en 2.b:
+
+- `k8s/postgres-deployment.yml`
+- `k8s/backend-deployment.yml`
+
+## Comandos utilizados
+
+```bash
+docker compose up --build
+chmod +x start.sh
+./start.sh
+kubectl get deployments
+kubectl get hpa
+watch -n 2 'kubectl get hpa; kubectl top pods'
 ```
 
-## Commit intermedio solicitado
-
-- Punto 2.a: `f931252e227eb6a692d4429e4a8f27dbaf28ac11`. En ese commit la app funciona con Docker y el cluster se crea con `createCluster.sh`, pero aun no hay Deployments.
-- Punto 2.b: `6c07778fe90853d6f656d15b55011ec892538823`. Este commit contiene los manifiestos de Deployment y Service.
-- Apartado 3.c: `a1b5d98aa7894584f7ab3c333e9397a4bd3d2116`. La app funciona en K8s con HPA configurado y conserva vulnerabilidades sin corregir.
+Tiempo estimado de arranque completo con `./start.sh`: unos 5 minutos.
