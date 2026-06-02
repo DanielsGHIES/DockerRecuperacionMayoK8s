@@ -157,27 +157,27 @@ kubectl get services
 
 ## Prueba de estres para HPA
 
-Con la aplicacion levantada y el `port-forward` activo en `http://localhost:8000`, se puede generar carga contra el endpoint `/stress`:
+Para hacer la prueba de estres en PowerShell, usa tres terminales.
 
-```bash
-while true; do curl -s "http://localhost:8000/stress?seconds=0.5" >/dev/null; done
+Terminal 1: abre el `port-forward` y dejalo activo:
+
+```powershell
+kubectl port-forward service/backend 8001:8000
 ```
 
-Para generar mas carga, abre varias terminales con el mismo comando o usa `hey` si esta instalado:
+Terminal 2: monitoriza el HPA cada 2 segundos:
 
-```bash
-hey -z 2m -c 30 "http://localhost:8000/stress?seconds=0.5"
+```powershell
+while ($true) { kubectl get hpa; Start-Sleep -Seconds 2; Clear-Host }
 ```
 
-Mientras se ejecuta la prueba:
+Terminal 3: genera carga contra el endpoint `/stress`:
 
-```bash
-kubectl get hpa
-kubectl get deployments
-kubectl get pods
+```powershell
+while ($true) { curl.exe -s "http://localhost:8001/stress?seconds=0.5" > $null }
 ```
 
-El HPA deberia aumentar progresivamente las replicas del `backend` cuando tenga metricas disponibles de `metrics-server`.
+
 
 ## Estructura del proyecto
 

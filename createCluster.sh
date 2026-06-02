@@ -59,7 +59,7 @@ kubectl patch deployment metrics-server -n kube-system \
       "--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP",
       "--kubelet-use-node-status-port",
       "--kubelet-insecure-tls",
-      "--metric-resolution=5s"
+      "--metric-resolution=15s"
     ]}
   ]' 2>/dev/null || true
 
