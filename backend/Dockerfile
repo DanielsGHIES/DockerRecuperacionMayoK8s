@@ -10,11 +10,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN addgroup --system appgroup && \
-    adduser --system --ingroup appgroup appuser && \
+RUN addgroup --system --gid 10001 appgroup && \
+    adduser --system --uid 10001 --ingroup appgroup appuser && \
     chown -R appuser:appgroup /app
 
-USER appuser
+USER 10001:10001
 
 EXPOSE 8000
 

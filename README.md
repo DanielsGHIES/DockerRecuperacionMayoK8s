@@ -136,7 +136,7 @@ Vulnerabilidad corregida:
 
 - Contenedores y pods sin contexto de seguridad explicito.
 - Configuracion anterior: los manifiestos no declaraban `securityContext`, `seccompProfile`, `allowPrivilegeEscalation` ni eliminaban Linux capabilities.
-- Configuracion actual: se anade `seccompProfile: RuntimeDefault`, ejecucion sin root cuando corresponde, `allowPrivilegeEscalation: false` y `capabilities.drop: ALL`.
+- Configuracion actual: se anade `seccompProfile: RuntimeDefault`, ejecucion sin root con usuario numerico cuando corresponde, `allowPrivilegeEscalation: false` y `capabilities.drop: ALL`.
 - La vulnerabilidad era existente en la version 2.c, no introducida a proposito.
 - Secret de PostgreSQL con password escrito en YAML.
 - Configuracion anterior: `k8s/postgres-secret.yml` contenia `POSTGRES_PASSWORD` en `stringData`.
